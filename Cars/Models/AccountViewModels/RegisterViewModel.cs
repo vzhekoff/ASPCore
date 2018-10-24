@@ -37,6 +37,6 @@ namespace Cars.Models.AccountViewModels
         [Required]
         public string Phone { get; set; }
 
-        //public bool isAdmin { get; set; }
+        public bool isAdmin { get; set; }
     }
 }

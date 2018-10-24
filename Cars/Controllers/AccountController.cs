@@ -13,6 +13,8 @@ using Microsoft.Extensions.Options;
 using Cars.Models;
 using Cars.Models.AccountViewModels;
 using Cars.Services;
+using Cars.Data;
+using Cars.Utilities;
 
 namespace Cars.Controllers
 {
@@ -22,6 +24,8 @@ namespace Cars.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly RoleManager<IdentityRole> roleManager;
+        private ApplicationDbContext dbc;
         private readonly IEmailSender _emailSender;
         private readonly ILogger _logger;
 
@@ -29,12 +33,17 @@ namespace Cars.Controllers
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             IEmailSender emailSender,
-            ILogger<AccountController> logger)
+            ILogger<AccountController> logger,
+            RoleManager<IdentityRole> roleManagerArg,
+            ApplicationDbContext dbcArg)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _emailSender = emailSender;
             _logger = logger;
+
+            roleManager = roleManagerArg;
+            dbc = dbcArg;
         }
 
         [TempData]
@@ -220,10 +229,39 @@ namespace Cars.Controllers
             ViewData["ReturnUrl"] = returnUrl;
             if (ModelState.IsValid)
             {
-                var user = new ApplicationUser { UserName = model.Email, Email = model.Email };
+                var user = new ApplicationUser
+                {
+                    UserName = model.Email,
+                    Email = model.Email,
+                    FName = model.FName,
+                    LName = model.LName,
+                    Address = model.Address,
+                    City = model.City,
+                    ZIP = model.ZIP,
+                    PhoneNumber = model.Phone
+                };
+
+                if (!await roleManager.RoleExistsAsync(Utility.CustomerEndUser))
+                {
+                    await roleManager.CreateAsync(new IdentityRole(Utility.CustomerEndUser));
+                }
+                if (!await roleManager.RoleExistsAsync(Utility.AdminEndUser))
+                {
+                    await roleManager.CreateAsync(new IdentityRole(Utility.AdminEndUser));
+                }
+
                 var result = await _userManager.CreateAsync(user, model.Password);
                 if (result.Succeeded)
                 {
+                    if (model.isAdmin)
+                    {
+                        await _userManager.AddToRoleAsync(user, Utility.AdminEndUser);
+                    }
+                    else
+                    {
+                        await _userManager.AddToRoleAsync(user, Utility.CustomerEndUser);
+                    }
+
                     _logger.LogInformation("User created a new account with password.");
 
                     var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
